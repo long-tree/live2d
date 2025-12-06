@@ -2,8 +2,6 @@
 
 export function initLipSync(model, app) {
 
-  const voiceUrl = 'https://lf3-appstore-sign.oceancloudapi.com/ocean-cloud-tos/VolcanoUserVoice/speech_7426720361753903141_6a1edae9-eb07-4f11-a5f3-ff4a48b991af.mp3?lk3s=da27ec82&x-expires=1765191487&x-signature=hBF1xPUHwVbqO3VO4I0dwhCXrN4%3D';
-
   const AudioCtx = window.AudioContext || window.webkitAudioContext;
   const audioContext = new AudioCtx();
   const analyser = audioContext.createAnalyser();
@@ -18,7 +16,12 @@ export function initLipSync(model, app) {
   window.addEventListener('keydown', tryResumeAudio, { once: true });
 
 
-  async function playVoice() {
+  async function playVoice(voiceUrl) {
+    if (!voiceUrl) {
+      console.warn("[lipsync] voiceUrl is required.");
+      return false;
+    }
+
     if (currentSource) {
       try { currentSource.stop(); } catch (_) {}
       currentSource.disconnect();
@@ -46,6 +49,8 @@ export function initLipSync(model, app) {
       currentSource = null;
       model.internalModel.coreModel.setParameterValueById('ParamA', 0);
     };
+
+    return true;
   }
 
 
@@ -54,8 +59,6 @@ export function initLipSync(model, app) {
     if (!lipSyncEnabled) return;
 
     model.internalModel.lipSync = false;
-    model.tracking = null;
-    model.pointerEvents = false;
   });
 
 

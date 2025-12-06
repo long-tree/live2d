@@ -4,10 +4,11 @@ import { initMapping } from "./mapping.js";
 import { createActionController } from "./action.js";
 import { createCharacterManager } from "./character-manager.js";
 import { createPanelDev } from "./panel-dev.js";
+import { initLipSync } from "./lipsync.js";
 
 window.PIXI = PIXI;
 
-const characterConfigs = [
+export const defaultCharacterConfigs = [
   {
     id: "hiyori",
     modelJsonUrl: "/live2d/hiyori/hiyori_pro_t11.model3.json",
@@ -24,16 +25,85 @@ const characterConfigs = [
   },
 ];
 
-(async function () {
-  Live2DModel.registerTicker(PIXI.Ticker);
+let tickerRegistered = false;
+function ensureTickerRegistered() {
+  if (!tickerRegistered) {
+    Live2DModel.registerTicker(PIXI.Ticker);
+    tickerRegistered = true;
+  }
+}
+
+async function loadInitialNLMap(id) {
+  try {
+    const res = await fetch(`/nl/${id}_nl_map.json`);
+    if (!res.ok) throw new Error(`status ${res.status}`);
+    return await res.json();
+  } catch (e) {
+    console.warn(`[live2d] NL map not loaded for ${id}:`, e);
+    return {};
+  }
+}
+
+function createController(manager) {
+  const get = (id) => manager.get(id);
+
+  return {
+    manager,
+    act(id, input) {
+      const c = get(id);
+      if (!c) return { ok: false, spec: null };
+      return c.actions.act(input);
+    },
+    actAll(input) {
+      return manager.list().map((c) => ({ id: c.id, ...c.actions.act(input) }));
+    },
+    setMode(id, mode) {
+      const c = get(id);
+      if (!c?.mapper) return false;
+      c.mapper.setMode(mode === 2 ? 2 : 1);
+      return true;
+    },
+    list() {
+      return manager.list().map((c) => ({
+        id: c.id,
+        mode: c.mapper.mode,
+        hasLipSync: !!c.lipSync,
+      }));
+    },
+    playVoice(id, voiceUrl) {
+      const c = get(id);
+      if (!c?.lipSync) {
+        console.warn("[live2d] lipSync not ready:", id);
+        return false;
+      }
+      return c.lipSync.playVoice(voiceUrl);
+    },
+    playVoiceAll(voiceUrl) {
+      return manager.list().map((c) => ({
+        id: c.id,
+        ok: !!c.lipSync?.playVoice(voiceUrl),
+      }));
+    },
+  };
+}
+
+export async function initLive2d({
+  canvasId = "canvas",
+  characterConfigs = defaultCharacterConfigs,
+  persist = true,
+  enablePanel = true,
+} = {}) {
+  ensureTickerRegistered();
+
+  const view = document.getElementById(canvasId);
+  if (!view) throw new Error(`Canvas element not found: ${canvasId}`);
 
   const app = new PIXI.Application({
-    view: document.getElementById('canvas'),
+    view,
     resizeTo: window,
     backgroundAlpha: 0,
     antialias: true,
   });
-
   app.stage.sortableChildren = true;
 
   const manager = createCharacterManager();
@@ -44,17 +114,6 @@ const characterConfigs = [
     model.x = x ?? app.renderer.width * xRatio;
     model.y = y ?? app.renderer.height * yRatio;
   };
-
-  async function loadInitialNLMap(id) {
-    try {
-      const res = await fetch(`/nl/${id}_nl_map.json`);
-      if (!res.ok) throw new Error(`status ${res.status}`);
-      return await res.json();
-    } catch (e) {
-      console.warn(`[live2d] NL map not loaded for ${id}:`, e);
-      return {};
-    }
-  }
 
   async function setupCharacter(cfg) {
     const model = await Live2DModel.from(cfg.modelJsonUrl);
@@ -70,11 +129,12 @@ const characterConfigs = [
     const mapper = await initMapping({
       modelJsonUrl: cfg.modelJsonUrl,
       initialNLMap,
-      persist: true, // 允许本地覆盖；如果只读可改为 false
+      persist,
     });
     const actions = createActionController(model, mapper);
+    const lipSync = initLipSync(model, app);
 
-    const character = { id: cfg.id, model, mapper, actions, app, config: cfg };
+    const character = { id: cfg.id, model, mapper, actions, app, config: cfg, lipSync };
     manager.register(character);
     loaded.push(character);
     return character;
@@ -86,23 +146,19 @@ const characterConfigs = [
     loaded.forEach((c) => placeModel(c.model, c.config));
   });
 
-  createPanelDev(manager);
+  if (enablePanel) createPanelDev(manager);
 
-  window.live2d = {
-    manager,
-    act(id, input) {
-      const c = manager.get(id);
-      if (!c) {
-        console.warn("[live2d] Character not found:", id);
-        return { ok: false, spec: null };
-      }
-      return c.actions.act(input);
-    },
-    actAll(input) {
-      return manager.list().map((c) => ({ id: c.id, ...c.actions.act(input) }));
-    },
-    list() {
-      return manager.list().map((c) => ({ id: c.id, mode: c.mapper.mode }));
-    },
-  };
-})();
+  const controller = createController(manager);
+  window.live2d = controller;
+  controller.app = app;
+
+  return controller;
+}
+
+// 浏览器示例自动初始化：如需关闭，设置 window.LIVE2D_AUTO_INIT = false
+if (typeof window !== "undefined" && window.LIVE2D_AUTO_INIT !== false) {
+  const autoCanvas = document.getElementById("canvas");
+  if (autoCanvas) {
+    initLive2d().catch((e) => console.error("[live2d] Auto init failed:", e));
+  }
+}
