@@ -1,31 +1,5 @@
 // mapping.js
-// 负责：读取 model3.json → 解析 expressions/motions → 按“模式”把输入解析为统一 ActionSpec
-
-// ============================
-// 模式开关（写死）
-// 1 = 人工测试模式
-// 2 = 自然语言模式
-// ============================
-export const OP_MODE = 1;
-
-// ============================
-// 自然语言词表（模式 2 才使用）
-// 你需要根据不同模型手工维护
-// key = 你希望 AI/用户说的话
-// value = { kind: 'motion'|'expression', name: '<fileBase or expName>' }
-// motion 的 name 推荐用“文件名去扩展名”，例如 special_01、mtn_03
-// expression 的 name 就是 model3.json 中的 Name，例如 exp_01
-// ============================
-const NL_MAP = {
-  "挥手": { kind: "motion", name: "special_01" },
-  "卖萌": { kind: "motion", name: "special_02" },
-  "鞠躬": { kind: "motion", name: "special_03" },
-  "放松": { kind: "motion", name: "mtn_02" },
-
-  "微笑": { kind: "expression", name: "exp_08" },
-  "惊讶": { kind: "expression", name: "exp_07" },
-  "害羞": { kind: "expression", name: "exp_04" },
-};
+// 每个模型一个 mapper 实例：自动解析 + 两模式 + 动态 NL 词表 + 本地保存
 
 // ----------------------------
 // 工具：提取文件 baseName
@@ -40,20 +14,16 @@ function fileBaseName(path = "") {
 
 // ----------------------------
 // 解析 model3.json → expressions & motions
-// 返回标准结构，供 action.js 使用
 // ----------------------------
 export function parseModelConfig(modelJson) {
   const fr = modelJson?.FileReferences || {};
 
-  // Expressions
   const expressions = (fr.Expressions || []).map((e, i) => ({
-    index: i,                 // 0-based
-    name: e.Name,             // exp_01 ...
+    index: i, // 0-based
+    name: e.Name,
     file: e.File,
   }));
 
-  // Motions
-  // Motions 是一个对象： { Idle: [...], "": [...] }
   const motions = [];
   const motionGroups = fr.Motions || {};
 
@@ -62,26 +32,22 @@ export function parseModelConfig(modelJson) {
     arr.forEach((m, idxInGroup) => {
       const base = fileBaseName(m.File);
       motions.push({
-        group,                // "Idle" 或 "" 等
+        group, // 可能是 "" 或 "Idle"
         indexInGroup: idxInGroup,
-        name: base,           // mtn_01 / special_01 ...
+        name: base,
         file: m.File,
       });
     });
   });
 
-  // 为人工测试模式做一个“扁平序号”
-  // 用户输入 motion + 序号时用这个列表
   const flatMotions = motions.map((m, flatIndex) => ({
     ...m,
-    flatIndex,               // 0-based
+    flatIndex,
   }));
 
-  // 便于自然语言按 name 查找
   const motionByName = new Map();
   flatMotions.forEach((m) => motionByName.set(m.name, m));
 
-  // 便于人工测试按序号查找
   const expressionByFlatIndex = new Map();
   expressions.forEach((e) => expressionByFlatIndex.set(e.index, e));
 
@@ -98,30 +64,71 @@ export function parseModelConfig(modelJson) {
 }
 
 // ----------------------------
-// 初始化 Mapper
-// - modelJsonUrl: 你的 model3.json 地址
+// localStorage 持久化
 // ----------------------------
-export async function initMapping({ modelJsonUrl }) {
+function storageKey(modelJsonUrl) {
+  return `live2d:nlmap:${modelJsonUrl}`;
+}
+
+function loadNLMap(modelJsonUrl) {
+  try {
+    const raw = localStorage.getItem(storageKey(modelJsonUrl));
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveNLMap(modelJsonUrl, mapObj) {
+  try {
+    localStorage.setItem(storageKey(modelJsonUrl), JSON.stringify(mapObj));
+  } catch {}
+}
+
+// ----------------------------
+// 初始化 Mapper（实例）
+// options:
+// - modelJsonUrl 必填
+// - mode: 1 手工 / 2 自然语言
+// - initialNLMap: 覆盖或预置
+// - persist: 是否启用 localStorage
+// ----------------------------
+export async function initMapping({
+  modelJsonUrl,
+  mode = 1,
+  initialNLMap = null,
+  persist = true,
+}) {
   const res = await fetch(modelJsonUrl);
   const modelJson = await res.json();
-
   const meta = parseModelConfig(modelJson);
 
-  // ----------------------------
-  // 统一 ActionSpec 格式：
-  // Expression:
-  //  { kind:'expression', name:'exp_01' }
-  //
-  // Motion:
-  //  { kind:'motion', group:'', indexInGroup: 3, name:'special_01' }
-  //
-  // ----------------------------
+  const persisted = persist ? loadNLMap(modelJsonUrl) : {};
+  const nlMap = {
+    ...persisted,
+    ...(initialNLMap || {}),
+  };
+
+  // 统一 spec 结构
+  function toExpressionSpecByIndex1(index1) {
+    const e = meta.expressionByFlatIndex.get(index1 - 1);
+    if (!e) return null;
+    return { kind: "expression", name: e.name };
+  }
+
+  function toMotionSpecByIndex1(index1) {
+    const m = meta.motionByFlatIndex.get(index1 - 1);
+    if (!m) return null;
+    return {
+      kind: "motion",
+      name: m.name,
+      group: m.group,
+      indexInGroup: m.indexInGroup,
+      flatIndex: m.flatIndex,
+    };
+  }
 
   function resolveManual(input) {
-    // 支持两种输入：
-    // 1) 对象：{ type:'expression'|'motion', index: 1 }  // 1-based
-    // 2) 字符串：'expression 3' / 'motion 2'
-
     let type, index;
 
     if (typeof input === "string") {
@@ -133,26 +140,10 @@ export async function initMapping({ modelJsonUrl }) {
       index = Number(input.index);
     }
 
-    if (!type || !Number.isFinite(index)) return null;
+    if (!type || !Number.isFinite(index) || index < 1) return null;
 
-    const zeroBased = index - 1;
-
-    if (type === "expression") {
-      const e = meta.expressionByFlatIndex.get(zeroBased);
-      if (!e) return null;
-      return { kind: "expression", name: e.name };
-    }
-
-    if (type === "motion") {
-      const m = meta.motionByFlatIndex.get(zeroBased);
-      if (!m) return null;
-      return {
-        kind: "motion",
-        name: m.name,
-        group: m.group,
-        indexInGroup: m.indexInGroup,
-      };
-    }
+    if (type === "expression") return toExpressionSpecByIndex1(index);
+    if (type === "motion") return toMotionSpecByIndex1(index);
 
     return null;
   }
@@ -161,44 +152,111 @@ export async function initMapping({ modelJsonUrl }) {
     const key = String(text || "").trim();
     if (!key) return null;
 
-    const rule = NL_MAP[key];
-    if (!rule) return null;
-
-    if (rule.kind === "expression") {
-      return { kind: "expression", name: rule.name };
+    // 1) 完全匹配
+    if (nlMap[key]) {
+      const rule = nlMap[key];
+      if (rule.kind === "expression") return { kind: "expression", name: rule.name };
+      if (rule.kind === "motion") {
+        const m = meta.motionByName.get(rule.name);
+        if (!m) return null;
+        return {
+          kind: "motion",
+          name: m.name,
+          group: m.group,
+          indexInGroup: m.indexInGroup,
+          flatIndex: m.flatIndex,
+        };
+      }
     }
 
-    if (rule.kind === "motion") {
-      // 用 name 去查真实 group/index
-      const m = meta.motionByName.get(rule.name);
-      if (!m) {
-        // 词表写了但当前模型没有这个动作
-        return null;
+    // 2) 简单 contains 兜底（可选）
+    for (const k of Object.keys(nlMap)) {
+      if (key.includes(k)) {
+        const rule = nlMap[k];
+        if (rule.kind === "expression") return { kind: "expression", name: rule.name };
+        if (rule.kind === "motion") {
+          const m = meta.motionByName.get(rule.name);
+          if (!m) return null;
+          return {
+            kind: "motion",
+            name: m.name,
+            group: m.group,
+            indexInGroup: m.indexInGroup,
+            flatIndex: m.flatIndex,
+          };
+        }
       }
-      return {
-        kind: "motion",
-        name: m.name,
-        group: m.group,
-        indexInGroup: m.indexInGroup,
-      };
     }
 
     return null;
   }
 
   function resolve(input) {
-    if (OP_MODE === 1) return resolveManual(input);
-    return resolveNatural(input);
+    return mode === 1 ? resolveManual(input) : resolveNatural(input);
   }
 
-  // 暴露给 action.js 和 main.js 观察/调试
+  // 绑定自然语言词 → spec（panel-dev 会用）
+  function bindPhrase(phrase, spec) {
+    const p = String(phrase || "").trim();
+    if (!p || !spec?.kind) return false;
+
+    if (spec.kind === "expression") {
+      nlMap[p] = { kind: "expression", name: spec.name };
+    } else if (spec.kind === "motion") {
+      nlMap[p] = { kind: "motion", name: spec.name };
+    } else {
+      return false;
+    }
+
+    if (persist) saveNLMap(modelJsonUrl, nlMap);
+    return true;
+  }
+
+  function bindPhrases(phrases, spec) {
+    const arr = Array.isArray(phrases)
+      ? phrases
+      : String(phrases || "")
+          .split(/[，,]/)
+          .map((s) => s.trim())
+          .filter(Boolean);
+
+    let ok = false;
+    for (const p of arr) {
+      ok = bindPhrase(p, spec) || ok;
+    }
+    return ok;
+  }
+
+  function getNLMap() {
+    return { ...nlMap };
+  }
+
+  function setMode(newMode) {
+    mode = newMode === 2 ? 2 : 1;
+  }
+
+  function exportNLMapJson() {
+    return JSON.stringify(getNLMap(), null, 2);
+  }
+
   return {
-    mode: OP_MODE,
+    mode,
+    setMode,
+
+    modelJsonUrl,
     modelJson,
+
     expressions: meta.expressions,
     motions: meta.flatMotions,
 
-    // 关键：解析入口
     resolve,
+    bindPhrase,
+    bindPhrases,
+    getNLMap,
+    exportNLMapJson,
+
+    // 手工模式辅助：把 index 转 spec
+    toExpressionSpecByIndex1,
+    toMotionSpecByIndex1,
   };
 }

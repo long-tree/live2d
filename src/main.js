@@ -1,65 +1,92 @@
 import * as PIXI from 'pixi.js';
 import { Live2DModel } from 'pixi-live2d-display/cubism4';
-import { initLipSync } from './lipsync.js';
 import { initMapping } from "./mapping.js";
 import { createActionController } from "./action.js";
+import { createCharacterManager } from "./character-manager.js";
+import { createPanelDev } from "./panel-dev.js";
 
 window.PIXI = PIXI;
 
+const characterConfigs = [
+  {
+    id: "hiyori",
+    modelJsonUrl: "/live2d/hiyori/hiyori_pro_t11.model3.json",
+    scale: 0.32,
+    position: { xRatio: 0.3, yRatio: 0.95 },
+    zIndex: 1,
+  },
+  {
+    id: "mao",
+    modelJsonUrl: "/live2d/mao/mao_pro.model3.json",
+    scale: 0.42,
+    position: { xRatio: 0.7, yRatio: 0.97 },
+    zIndex: 2,
+  },
+];
+
 (async function () {
+  Live2DModel.registerTicker(PIXI.Ticker);
+
   const app = new PIXI.Application({
     view: document.getElementById('canvas'),
     resizeTo: window,
     backgroundAlpha: 0,
     antialias: true,
   });
-  const modelJsonUrl='/live2d/hiyori/hiyori_pro_t11.model3.json';
-  const model = await Live2DModel.from(modelJsonUrl, {
-    autoInteract: false
+
+  app.stage.sortableChildren = true;
+
+  const manager = createCharacterManager();
+  const loaded = [];
+
+  const placeModel = (model, cfg) => {
+    const { xRatio = 0.5, yRatio = 0.5, x, y } = cfg.position || {};
+    model.x = x ?? app.renderer.width * xRatio;
+    model.y = y ?? app.renderer.height * yRatio;
+  };
+
+  async function setupCharacter(cfg) {
+    const model = await Live2DModel.from(cfg.modelJsonUrl);
+
+    model.anchor.set(0.5, 0.5);
+    model.scale.set(cfg.scale ?? 0.4);
+    model.zIndex = cfg.zIndex ?? 0;
+    placeModel(model, cfg);
+
+    app.stage.addChild(model);
+
+    const mapper = await initMapping({ modelJsonUrl: cfg.modelJsonUrl });
+    const actions = createActionController(model, mapper);
+
+    const character = { id: cfg.id, model, mapper, actions, app, config: cfg };
+    manager.register(character);
+    loaded.push(character);
+    return character;
+  }
+
+  await Promise.all(characterConfigs.map(setupCharacter));
+
+  window.addEventListener("resize", () => {
+    loaded.forEach((c) => placeModel(c.model, c.config));
   });
 
-  if (model._onPointerMove) {
-    window.removeEventListener('pointermove', model._onPointerMove);
-  }
+  createPanelDev(manager);
 
-  app.stage.addChild(model);
-
-  model.anchor.set(0.5, 0.5);
-
-  const modelBaseWidth = model.width;
-  const modelBaseHeight = model.height;
-
-  function resizeModel() {
-    const padding = 0.9;
-    const scale = Math.min(
-      (app.screen.width / modelBaseWidth) * padding,
-      (app.screen.height / modelBaseHeight) * padding
-    );
-    model.scale.set(scale);
-    model.position.set(app.screen.width / 2, app.screen.height / 2);
-  }
-  resizeModel();
-  window.addEventListener('resize', resizeModel);
-
-  // 初始化嘴型 / 音频系统
-//   const lip = initLipSync(model, app);
-
-//   // 自动播放音频
-//   lip.playVoice();
-
-   const mapper = await initMapping({ modelJsonUrl });
-
-  // 2) 初始化 action 控制器
-  const actions = createActionController(model, mapper);
-// 手工测试入口：
-window.testAct = (input) => actions.act(input);
-window.listAct = () => console.log(actions.list());
-
-console.log("测试命令如下：");
-console.log("testAct({ type: 'expression', index: 1 })");
-console.log("testAct({ type: 'motion', index: 3 })");
-console.log("listAct()");
-
-
-
+  window.live2d = {
+    manager,
+    act(id, input) {
+      const c = manager.get(id);
+      if (!c) {
+        console.warn("[live2d] Character not found:", id);
+        return { ok: false, spec: null };
+      }
+      return c.actions.act(input);
+    },
+    actAll(input) {
+      return manager.list().map((c) => ({ id: c.id, ...c.actions.act(input) }));
+    },
+    list() {
+      return manager.list().map((c) => ({ id: c.id, mode: c.mapper.mode }));
+    },
+  };
 })();
