@@ -74,7 +74,7 @@ export function initLipSync(model, app) {
       peak = Math.max(peak, v);
     }
 
-    const mouthOpen = Math.min(peak * 8, 1);
+    const mouthOpen = Math.min(peak * 9, 1);
     model.internalModel.coreModel.setParameterValueById('ParamA', mouthOpen);
   });
 
