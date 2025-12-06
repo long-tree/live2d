@@ -33,37 +33,21 @@ async function runTest() {
   // 切到自然语言模式
   ["hiyori", "mao"].forEach((id) => ctl.setMode(id, 2));
 
-  const seq = [
-    { id: "hiyori", step: "play1" },
-    { id: "mao", step: "play1" },
-    { id: "hiyori", step: "act" },
-    { id: "mao", step: "act" },
-  ];
-
-  for (const item of seq) {
-    if (item.step === "play1") {
-      console.log(`[test] ${item.id} 播放音频`);
-      // 直接调用 model.speak 以验证新版 API
-      const m = ctl.manager.get(item.id)?.model;
-      if (!m?.speak) {
-        console.warn(`[test] speak not available on ${item.id}`);
-      } else {
-        await m.speak(VOICE_URL, { volume: 1, crossOrigin: "anonymous" });
-      }
-    } else if (item.step === "act") {
-      console.log(`[test] ${item.id} 动作: 打气`);
-      ctl.act(item.id, "打气");
+  for (const id of ["hiyori", "mao"]) {
+    const m = ctl.manager.get(id)?.model;
+    if (!m?.motion) {
+      console.warn(`[test] motion not available on ${id}`);
+      continue;
     }
+    console.log(`[test] ${id} 动作+音频`);
+    // MotionPriority.NORMAL === 2
+    m.motion("", 0, 2, {
+      sound: VOICE_URL,
+      volume: 1,
+      crossOrigin: "anonymous",
+    }).then(() => console.log(`[test] ${id} motion+audio finished`))
+      .catch((e) => console.error(`[test] ${id} motion+audio error`, e));
   }
-
-  setTimeout(() => {
-    console.log("[test] 10s 后再次播放音频 (各角色各一次)");
-    ["hiyori", "mao"].forEach(async (id) => {
-      const m = ctl.manager.get(id)?.model;
-      if (!m?.speak) return;
-      await m.speak(VOICE_URL, { volume: 1, crossOrigin: "anonymous" });
-    });
-  }, 10000);
 }
 
 // 由于浏览器自动播放限制，改为点击触发

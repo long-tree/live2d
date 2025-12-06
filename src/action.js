@@ -1,10 +1,14 @@
 // action.js
+import { MotionPriority } from "pixi-live2d-display-lipsyncpatch/cubism4";
 
 function tryCallMotion(model, spec) {
+  // 默认用 NORMAL，除非显式传入 priority
+  const priority = spec.priority ?? MotionPriority.NORMAL;
+
   // 优先 group+index
   try {
     if (typeof model.motion === "function") {
-      const r = model.motion(spec.group, spec.indexInGroup);
+      const r = model.motion(spec.group, spec.indexInGroup, priority);
       if (r) return r;
     }
   } catch (_) {}
@@ -12,7 +16,7 @@ function tryCallMotion(model, spec) {
   // 再按 name
   try {
     if (typeof model.motion === "function" && spec.name) {
-      return model.motion(spec.name);
+      return model.motion(spec.name, undefined, priority);
     }
   } catch (_) {}
 
@@ -20,7 +24,7 @@ function tryCallMotion(model, spec) {
   try {
     const mm = model?.internalModel?.motionManager;
     if (mm && typeof mm.startMotion === "function") {
-      return mm.startMotion(spec.group, spec.indexInGroup);
+      return mm.startMotion(spec.group, spec.indexInGroup, priority);
     }
   } catch (_) {}
 
