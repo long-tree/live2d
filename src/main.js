@@ -1,12 +1,16 @@
 import * as PIXI from 'pixi.js';
-import { Live2DModel } from 'pixi-live2d-display/cubism4';
+// 使用带内置口型/音频支持的分支版
+import { Live2DModel } from 'pixi-live2d-display-lipsyncpatch/cubism4';
 import { initMapping } from "./mapping.js";
 import { createActionController } from "./action.js";
 import { createCharacterManager } from "./character-manager.js";
 import { createPanelDev } from "./panel-dev.js";
-import { initLipSync } from "./lipsync.js";
+import { EventSystem } from "@pixi/events";
 
 window.PIXI = PIXI;
+
+// Pixi v7 兼容：为旧 interaction API 提供事件系统
+PIXI.Renderer.registerPlugin?.("interaction", EventSystem);
 
 export const defaultCharacterConfigs = [
   {
@@ -67,22 +71,33 @@ function createController(manager) {
       return manager.list().map((c) => ({
         id: c.id,
         mode: c.mapper.mode,
-        hasLipSync: !!c.lipSync,
+        hasSpeak: typeof c.model?.speak === "function",
       }));
     },
-    playVoice(id, voiceUrl) {
+    playVoice(id, voiceUrl, opts) {
       const c = get(id);
-      if (!c?.lipSync) {
-        console.warn("[live2d] lipSync not ready:", id);
+      if (!c?.model?.speak) {
+        console.warn("[live2d] speak not available:", id);
         return false;
       }
-      return c.lipSync.playVoice(voiceUrl);
+      return c.model.speak(voiceUrl, opts);
     },
-    playVoiceAll(voiceUrl) {
+    playVoiceAll(voiceUrl, opts) {
       return manager.list().map((c) => ({
         id: c.id,
-        ok: !!c.lipSync?.playVoice(voiceUrl),
+        ok: !!c.model?.speak?.(voiceUrl, opts),
       }));
+    },
+    stopSpeaking(id) {
+      const c = get(id);
+      if (c?.model?.stopSpeaking) c.model.stopSpeaking();
+    },
+    stopSpeakingAll() {
+      manager.list().forEach((c) => c.model?.stopSpeaking?.());
+    },
+    stopMotions(id) {
+      const c = get(id);
+      if (c?.model?.stopMotions) c.model.stopMotions();
     },
   };
 }
@@ -104,6 +119,9 @@ export async function initLive2d({
     backgroundAlpha: 0,
     antialias: true,
   });
+  // 关闭全局交互，避免 pixi7 事件系统访问 isInteractive
+  app.stage.eventMode = "none";
+  app.stage.interactiveChildren = false;
   app.stage.sortableChildren = true;
 
   const manager = createCharacterManager();
@@ -116,7 +134,10 @@ export async function initLive2d({
   };
 
   async function setupCharacter(cfg) {
-    const model = await Live2DModel.from(cfg.modelJsonUrl);
+
+    const model = await Live2DModel.from(cfg.modelJsonUrl, {
+      autoInteract: false,
+    });
 
     model.anchor.set(0.5, 0.5);
     model.scale.set(cfg.scale ?? 0.4);
@@ -132,9 +153,8 @@ export async function initLive2d({
       persist,
     });
     const actions = createActionController(model, mapper);
-    const lipSync = initLipSync(model, app);
 
-    const character = { id: cfg.id, model, mapper, actions, app, config: cfg, lipSync };
+    const character = { id: cfg.id, model, mapper, actions, app, config: cfg };
     manager.register(character);
     loaded.push(character);
     return character;

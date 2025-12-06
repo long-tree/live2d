@@ -43,7 +43,13 @@ async function runTest() {
   for (const item of seq) {
     if (item.step === "play1") {
       console.log(`[test] ${item.id} 播放音频`);
-      ctl.playVoice(item.id, VOICE_URL);
+      // 直接调用 model.speak 以验证新版 API
+      const m = ctl.manager.get(item.id)?.model;
+      if (!m?.speak) {
+        console.warn(`[test] speak not available on ${item.id}`);
+      } else {
+        await m.speak(VOICE_URL, { volume: 1, crossOrigin: "anonymous" });
+      }
     } else if (item.step === "act") {
       console.log(`[test] ${item.id} 动作: 打气`);
       ctl.act(item.id, "打气");
@@ -52,8 +58,29 @@ async function runTest() {
 
   setTimeout(() => {
     console.log("[test] 10s 后再次播放音频 (各角色各一次)");
-    ["hiyori", "mao"].forEach((id) => ctl.playVoice(id, VOICE_URL));
+    ["hiyori", "mao"].forEach(async (id) => {
+      const m = ctl.manager.get(id)?.model;
+      if (!m?.speak) return;
+      await m.speak(VOICE_URL, { volume: 1, crossOrigin: "anonymous" });
+    });
   }, 10000);
 }
 
-runTest().catch((e) => console.error("[test] failed:", e));
+// 由于浏览器自动播放限制，改为点击触发
+const btn = document.createElement("button");
+btn.textContent = "Run Live2D Test";
+btn.style.cssText = `
+  position: fixed;
+  left: 12px;
+  bottom: 12px;
+  padding: 8px 12px;
+  z-index: 99999;
+`;
+btn.addEventListener("click", () => {
+  btn.disabled = true;
+  runTest().catch((e) => {
+    console.error("[test] failed:", e);
+    btn.disabled = false;
+  });
+});
+document.body.appendChild(btn);
