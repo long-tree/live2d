@@ -1,9 +1,6 @@
 import * as PIXI from 'pixi.js';
 import { Live2DModel } from 'pixi-live2d-display/cubism4';
 
-
-// expose PIXI to window so that this plugin is able to
-// reference window.PIXI.Ticker to automatically update Live2D models
 window.PIXI = PIXI;
 
 (async function () {
@@ -14,11 +11,21 @@ window.PIXI = PIXI;
     antialias: true,
   });
 
-  const model = await Live2DModel.from('/live2d/runtime/mao_pro.model3.json');
+const model = await Live2DModel.from('/live2d/runtime/mao_pro.model3.json', {
+  autoInteract: false
+});
+
+
+
+
+if (model._onPointerMove) {
+  window.removeEventListener('pointermove', model._onPointerMove);
+}
+
 
   app.stage.addChild(model);
 
-  // place model at center, scale to fit viewport with padding
+  // 居中摆放
   model.anchor.set(0.5, 0.5);
   model.scale.set(1);
 
@@ -26,7 +33,7 @@ window.PIXI = PIXI;
   const modelBaseHeight = model.height;
 
   function resizeModel() {
-    const padding = 0.9; // keep a bit of breathing room
+    const padding = 0.9;
     const scale = Math.min(
       (app.screen.width / modelBaseWidth) * padding,
       (app.screen.height / modelBaseHeight) * padding
@@ -39,10 +46,14 @@ window.PIXI = PIXI;
   resizeModel();
   window.addEventListener('resize', resizeModel);
 
-  // interaction
-  model.on('hit', (hitAreas) => {
-    if (hitAreas.includes('body')) {
-      model.motion('tap_body');
-    }
-  });
+  // ★★最关键：嘴型最大化控制，无音频、无RMS、无自动覆盖★★
+app.ticker.add(() => {
+  model.internalModel.lipSync = false;
+  model.internalModel.motionManager.stopAllMotions();
+  model.tracking = null;
+
+  model.internalModel.coreModel.setParameterValueById('ParamA', 1);
+});
+
+
 })();
