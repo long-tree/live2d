@@ -1,0 +1,18 @@
+{
+  "打气": {
+    "kind": "motion",
+    "name": "mtn_02"
+  },
+  "摇动": {
+    "kind": "motion",
+    "name": "mtn_03"
+  },
+  "扶帽子": {
+    "kind": "motion",
+    "name": "mtn_04"
+  },
+  "比心": {
+    "kind": "motion",
+    "name": "special_01"
+  }
+}

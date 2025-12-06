@@ -81,6 +81,14 @@ export function createPanelDev(manager) {
     </div>
 
     <div style="margin-top:8px;">
+      <label>模式</label>
+      <select id="pd-mode-toggle" style="width:100%; margin-top:4px;">
+        <option value="manual">手动（play key5/M5/E3）</option>
+        <option value="nl">自然语言</option>
+      </select>
+    </div>
+
+    <div style="margin-top:8px;">
       <label>Command</label>
       <input id="pd-cmd" placeholder="play key5 / play M5 / play E3"
              style="width:100%; margin-top:4px; padding:6px;" />
@@ -116,6 +124,7 @@ export function createPanelDev(manager) {
   const exportBtn = root.querySelector("#pd-export");
   const hint = root.querySelector("#pd-hint");
   const modeBox = root.querySelector("#pd-mode");
+  const modeSel = root.querySelector("#pd-mode-toggle");
 
   // 填充角色列表
   characters.forEach((c) => {
@@ -131,7 +140,9 @@ export function createPanelDev(manager) {
 
   function refreshMode() {
     const c = current();
-    modeBox.textContent = c?.mapper?.mode === 2 ? "MODE: LLM" : "MODE: MANUAL";
+    const mode = c?.mapper?.mode === 2 ? "nl" : "manual";
+    if (modeSel) modeSel.value = mode;
+    modeBox.textContent = mode === "nl" ? "MODE: LLM" : "MODE: MANUAL";
   }
 
   sel.addEventListener("change", () => {
@@ -139,6 +150,13 @@ export function createPanelDev(manager) {
     lastSpec = null;
     nlInput.value = "";
     hint.textContent = "";
+    refreshMode();
+  });
+
+  modeSel?.addEventListener("change", () => {
+    const c = current();
+    if (!c?.mapper) return;
+    c.mapper.setMode(modeSel.value === "nl" ? 2 : 1);
     refreshMode();
   });
 
@@ -152,17 +170,32 @@ export function createPanelDev(manager) {
 
   runBtn.addEventListener("click", async () => {
     const c = current();
-    const parsed = parsePlayCommand(cmdInput.value);
+    const useNL = modeSel?.value === "nl";
 
-    if (!parsed) {
-      hint.textContent = "Invalid command. Use: play key5 / play M5 / play E3";
-      return;
+    let ok = false;
+    let spec = null;
+
+    if (useNL) {
+      const text = cmdInput.value.trim();
+      if (!text) {
+        hint.textContent = "请输入自然语言指令。";
+        return;
+      }
+      c.mapper.setMode(2);
+      ({ ok, spec } = c.actions.act(text));
+    } else {
+      const parsed = parsePlayCommand(cmdInput.value);
+
+      if (!parsed) {
+        hint.textContent = "Invalid command. Use: play key5 / play M5 / play E3";
+        return;
+      }
+
+      // 强制用手工解析来保证 keyN 可控
+      c.mapper.setMode(1);
+
+      ({ ok, spec } = c.actions.act(parsed));
     }
-
-    // 强制用手工解析来保证 keyN 可控
-    c.mapper.setMode(1);
-
-    const { ok, spec } = c.actions.act(parsed);
     refreshMode();
 
     if (!ok || !spec) {
@@ -203,15 +236,18 @@ export function createPanelDev(manager) {
     const c = current();
     const json = c.mapper.exportNLMapJson();
 
-    const blob = new Blob([json], { type: "application/json" });
+    const blob = new Blob([json], { type: "application/json;charset=utf-8" });
     const url = URL.createObjectURL(blob);
 
     const a = document.createElement("a");
     a.href = url;
     a.download = `${c.id.replace(/\W+/g, "_")}_nl_map.json`;
+    document.body.appendChild(a);
     a.click();
+    document.body.removeChild(a);
 
-    URL.revokeObjectURL(url);
+    // 延迟 revoke 避免部分浏览器未触发下载
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
     hint.textContent = "Exported JSON.";
   });
 }

@@ -45,6 +45,17 @@ const characterConfigs = [
     model.y = y ?? app.renderer.height * yRatio;
   };
 
+  async function loadInitialNLMap(id) {
+    try {
+      const res = await fetch(`/nl/${id}_nl_map.json`);
+      if (!res.ok) throw new Error(`status ${res.status}`);
+      return await res.json();
+    } catch (e) {
+      console.warn(`[live2d] NL map not loaded for ${id}:`, e);
+      return {};
+    }
+  }
+
   async function setupCharacter(cfg) {
     const model = await Live2DModel.from(cfg.modelJsonUrl);
 
@@ -55,7 +66,12 @@ const characterConfigs = [
 
     app.stage.addChild(model);
 
-    const mapper = await initMapping({ modelJsonUrl: cfg.modelJsonUrl });
+    const initialNLMap = await loadInitialNLMap(cfg.id);
+    const mapper = await initMapping({
+      modelJsonUrl: cfg.modelJsonUrl,
+      initialNLMap,
+      persist: true, // 允许本地覆盖；如果只读可改为 false
+    });
     const actions = createActionController(model, mapper);
 
     const character = { id: cfg.id, model, mapper, actions, app, config: cfg };
