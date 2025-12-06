@@ -52,6 +52,11 @@ export function createActionController(model, mapper) {
       return { ok: false, spec: null };
     }
 
+    if (!model?.internalModel) {
+      console.warn("[action] Model not ready, skip action.");
+      return { ok: false, spec };
+    }
+
     if (spec.kind === "expression") {
       const ok = !!tryCallExpression(model, spec);
       return { ok, spec };

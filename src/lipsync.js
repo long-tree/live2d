@@ -51,8 +51,9 @@ export function initLipSync(model, app) {
 
   // 每帧禁掉干扰嘴型的系统
   app.ticker.add(() => {
+    if (!lipSyncEnabled) return;
+
     model.internalModel.lipSync = false;
-    model.internalModel.motionManager.stopAllMotions();
     model.tracking = null;
     model.pointerEvents = false;
   });

@@ -240,7 +240,9 @@ export async function initMapping({
   }
 
   return {
-    mode,
+    get mode() {
+      return mode;
+    },
     setMode,
 
     modelJsonUrl,

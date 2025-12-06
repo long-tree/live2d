@@ -11,15 +11,15 @@ const characterConfigs = [
   {
     id: "hiyori",
     modelJsonUrl: "/live2d/hiyori/hiyori_pro_t11.model3.json",
-    scale: 0.32,
-    position: { xRatio: 0.3, yRatio: 0.95 },
+    scale: 0.2,
+    position: { xRatio: 0.3, yRatio: 0.5 },
     zIndex: 1,
   },
   {
     id: "mao",
     modelJsonUrl: "/live2d/mao/mao_pro.model3.json",
-    scale: 0.42,
-    position: { xRatio: 0.7, yRatio: 0.97 },
+    scale: 0.1,
+    position: { xRatio: 0.7, yRatio: 0.5 },
     zIndex: 2,
   },
 ];
