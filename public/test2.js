@@ -18,8 +18,8 @@ async function runDemo() {
     id: "mao",
     text: "你好，世界！",
     audioUrl: VOICE_URL,
-    motion: "打",
-    expression: 1,
+    motion: "打气",
+    expression: 2,
     crossOrigin: "anonymous",
   });
 
