@@ -16,11 +16,15 @@ async function runDemo() {
 
   await say({
     id: "mao",
-    text: "你好，世界！",
+    text: "分析关于CORS的问题用户提到之前的自制lipsync基于频谱分析，可能曾通过AudioCont域配置，问题可能会解决于频谱分析，可能曾之前的自制lipsync基于频谱分析，可能",
     audioUrl: VOICE_URL,
     motion: "打气",
     expression: 2,
     crossOrigin: "anonymous",
+      charsPerSec: 8,
+  fontSize: 13,
+  maxLines: 3,
+  maxCharsPerLine: 10,
   });
 
   // await say({
