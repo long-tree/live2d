@@ -1,57 +1,85 @@
-# Live2D 控制与集成说明
+# Live2D 控制与集成说明（基于 pixi-live2d-display-lipsyncpatch）
 
-本仓库提供了可在浏览器/Electron 中复用的 Live2D 初始化与控制入口，只需两个函数：
+本仓库提供一个简洁的初始化入口和控制器，支持：
+- 动作/表情（`act`/`actAll`）；
+- 动作+音频+口型同步（`actWithAudio`/`actAllWithAudio`，通过 motion 的 `sound` 选项驱动口型）；
+- 自然语言/手动模式映射（`mapping.js`）；
+- 调试面板（Panel Dev）。
 
-- `initLive2d({ canvasId, characterConfigs, persist, enablePanel })`：初始化到指定 canvas。
-- 控制器方法：`act/actAll/setMode/playVoice/playVoiceAll/list`。
-
-## 快速开始
-
-1. 静态资源
-   - 将模型放在 `public/live2d/`，核心脚本 `public/Core/live2dcubismcore.js`。
-   - 将 NL 词表放在 `public/nl/`，命名 `${id}_nl_map.json`，例如 `hiyori_nl_map.json`。
-2. 页面
+## 快速开始（浏览器）
+1. 资源放置  
+   - 模型：`public/live2d/`，核心脚本：`public/Core/live2dcubismcore.js`。  
+   - 自然语言词表：`public/nl/${id}_nl_map.json`（可选，作为初始映射）。  
+2. 页面引用  
    ```html
    <canvas id="canvas"></canvas>
    <script src="/Core/live2dcubismcore.js"></script>
    <script type="module">
      import { initLive2d } from '/src/main.js';
-     const controller = await initLive2d({
+     const ctl = await initLive2d({
        canvasId: 'canvas',
        characterConfigs: [
          { id: 'hiyori', modelJsonUrl: '/live2d/hiyori/hiyori_pro_t11.model3.json', scale: 0.32, position: { xRatio: 0.3, yRatio: 0.95 } },
          { id: 'mao', modelJsonUrl: '/live2d/mao/mao_pro.model3.json', scale: 0.42, position: { xRatio: 0.7, yRatio: 0.97 } },
        ],
-       persist: true,   // 允许覆盖 NL 映射（localStorage）
+       persist: true,     // 允许用户在 localStorage 覆盖 NL 映射
        enablePanel: true, // 调试面板
      });
+
+     // 纯动作/表情
+     ctl.act('hiyori', '挥手');
+// 动作+音频+口型+表情（sound 通过 motion 传入；expression 支持索引或表情名）
+ctl.actWithAudio('hiyori', '挥手', '/audios/hello.mp3', {
+  volume: 1,
+  expression: 0,
+  resetExpression: true,
+});
    </script>
    ```
-   - 如仅需要默认配置且页面已有 `<canvas id="canvas">`，不调用也会自动初始化（可设置 `window.LIVE2D_AUTO_INIT = false` 关闭）。
+   - 如果页面已有 `<canvas id="canvas">`，默认会自动初始化；如需关闭自动初始化：`window.LIVE2D_AUTO_INIT = false`。
 
-## 控制器 API
+## 控制器 API（`initLive2d` 返回值）
+- `act(id, input, extra?)` / `actAll(input, extra?)`：触发表情或动作。`input` 可为自然语言或 `{ type:'motion'|'expression', index }` 等；`extra` 可包含 `priority` 等。
+- `actWithAudio(id, input, soundUrl, extra?)` / `actAllWithAudio(...)`：动作+音频+口型，`sound` 通过 motion 选项传递，`extra` 支持 `volume/expression/resetExpression/crossOrigin/onFinish/onError` 等。
+- `setMode(id, mode)`：1 手动（索引），2 自然语言。
+- `list()`：返回角色列表及当前模式。
+- `stopMotions(id)`：停止指定角色的动作。
 
+> 说明：独立 `speak` 已移除，统一通过 `motion` 的 `sound` 选项实现口型同步。
+
+## 调试面板（Panel Dev）
+- 右下角浮层（默认开启，可 `initLive2d({ enablePanel:false })` 关闭）：
+  - 选择角色；
+  - 切换模式（手动/自然语言）；
+  - 输入命令运行：`play key5` / `play M5` / `play E3`；
+  - 打印列表（动作/表情/NL 映射）；
+  - 绑定自然语言标签到最近一次动作/表情；
+  - 导出 NL 映射 JSON（下载 `${id}_nl_map.json`）。
+- 提示：在自然语言模式下可直接输入中文指令并点击 Run。
+
+## 自然语言映射（mapping.js）
+- 初始映射：从 `public/nl/${id}_nl_map.json` 读取。
+- `persist: true`：用户绑定的 NL 标签会写入 localStorage，覆盖默认映射；`persist: false` 则只读。
+- `setMode(1|2)`：1 手动索引解析，2 自然语言解析。
+- `bindPhrases` / `exportNLMapJson`：面板会使用。
+
+## Electron 提示
+- 在渲染进程中引入，资源路径确保可通过 `file://` 访问（可用 `new URL('./live2d/...', import.meta.url)`）。
+- 其它用法与浏览器一致。
+
+## 最简演示（自动触发）
+`public/test.js` 作为文档示例，加载后自动：
 ```js
-const ctl = await initLive2d({ canvasId: 'live2d-canvas' });
-
-ctl.setMode('hiyori', 2);         // 1: 手动索引，2: 自然语言
-ctl.act('hiyori', '挥手');        // 自然语言触发
-ctl.act('mao', { type: 'motion', index: 3 }); // 手动索引
-
-ctl.playVoice('hiyori', '/audios/hello.mp3'); // 播放并口型同步
-ctl.playVoiceAll('/audios/broadcast.mp3');    // 所有角色口型
-
-ctl.list(); // [{id, mode, hasLipSync}, ...]
+import { initLive2d } from '/src/main.js';
+const ctl = await initLive2d();
+['hiyori','mao'].forEach(id => ctl.setMode(id, 2));
+['hiyori','mao'].forEach(id =>
+  ctl.actWithAudio(id, '打气', '/your/audio.mp3', {
+    volume: 1,
+    crossOrigin: 'anonymous',
+    expression: 0,
+    resetExpression: true,
+  })
+);
 ```
-
-## Electron 集成要点
-- 在渲染进程中引入本模块，确保资源路径在 `file://` 下可访问（可使用 `new URL('./live2d/...', import.meta.url)`）。
-- 只要提供 `canvasId` 和模型配置即可；其它逻辑与浏览器相同。
-
-## 调试面板
-- 默认开启，右下角浮层可切换角色、模式（手动/自然语言）、执行动作、绑定短语、导出 NL JSON。
-- 关闭：`initLive2d({ enablePanel: false })`。
-
-## 词表策略
-- 固定只读：`persist: false`，完全依赖 `public/nl/${id}_nl_map.json`。
-- 可覆盖：`persist: true`，用户绑定的自然语言存入 localStorage，优先级高于内置表。
+如浏览器阻拦自动播放，请先点击页面任意位置解锁音频。

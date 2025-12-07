@@ -17,6 +17,11 @@ function buildOptions(spec, model) {
   if (spec.onFinish) opt.onFinish = spec.onFinish;
   if (spec.onError) opt.onError = spec.onError;
 
+  // 如果指定了表情且未设置 resetExpression，默认 true
+  if (opt.expression !== undefined && opt.resetExpression === undefined) {
+    opt.resetExpression = true;
+  }
+
   // 默认播完回 Idle，除非已指定 onFinish 或本身是 Idle 组
   if (!opt.onFinish && spec.group !== "Idle") {
     opt.onFinish = () => {
