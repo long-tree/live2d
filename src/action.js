@@ -7,6 +7,24 @@ function normalizeSpec(mapper, inputOrSpec) {
   return mapper.resolve(inputOrSpec);
 }
 
+function defaultSpec(mapper) {
+  const m0 = mapper.motions?.[0];
+  if (m0) {
+    return {
+      kind: "motion",
+      name: m0.name,
+      group: m0.group,
+      indexInGroup: m0.indexInGroup,
+      flatIndex: m0.flatIndex,
+    };
+  }
+  const e0 = mapper.expressions?.[0];
+  if (e0) {
+    return { kind: "expression", name: e0.name };
+  }
+  return null;
+}
+
 function buildOptions(spec, model) {
   const opt = { ...(spec.options || {}) };
   if (spec.sound) opt.sound = spec.sound;
@@ -53,10 +71,13 @@ function tryCallExpression(model, spec) {
 
 export function createActionController(model, mapper) {
   function act(inputOrSpec, extra = {}) {
-    const baseSpec = normalizeSpec(mapper, inputOrSpec);
+    let baseSpec = normalizeSpec(mapper, inputOrSpec);
     if (!baseSpec) {
-      console.warn("[action] Unresolved input:", inputOrSpec);
-      return { ok: false, spec: null };
+      baseSpec = defaultSpec(mapper);
+      if (!baseSpec) {
+        console.warn("[action] Unresolved input and no default:", inputOrSpec);
+        return { ok: false, spec: null };
+      }
     }
 
     if (!model?.internalModel) {

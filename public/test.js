@@ -15,7 +15,7 @@ const VOICE_URL =
     ctl.actWithAudio(id, "打气", VOICE_URL, {
       volume: 1,
       crossOrigin: "anonymous",
-      expression: 1 , // 示例：同时套用表情（索引或名称）
+      expression: 3, // 示例：同时套用表情（索引或名称）
       resetExpression: true,
     })
   );
