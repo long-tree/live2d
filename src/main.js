@@ -53,13 +53,26 @@ function createController(manager) {
 
   return {
     manager,
-    act(id, input) {
+    // 纯动作/表情（无音频）
+    act(id, input, extra = {}) {
       const c = get(id);
       if (!c) return { ok: false, spec: null };
-      return c.actions.act(input);
+      return c.actions.act(input, extra);
     },
-    actAll(input) {
-      return manager.list().map((c) => ({ id: c.id, ...c.actions.act(input) }));
+    actAll(input, extra = {}) {
+      return manager.list().map((c) => ({ id: c.id, ...c.actions.act(input, extra) }));
+    },
+    // 动作 + 音频（sound 通过 motion options 传入，触发口型）
+    actWithAudio(id, input, soundUrl, extra = {}) {
+      const c = get(id);
+      if (!c) return { ok: false, spec: null };
+      return c.actions.act(input, { ...extra, sound: soundUrl });
+    },
+    actAllWithAudio(input, soundUrl, extra = {}) {
+      return manager.list().map((c) => ({
+        id: c.id,
+        ...c.actions.act(input, { ...extra, sound: soundUrl }),
+      }));
     },
     setMode(id, mode) {
       const c = get(id);
@@ -71,29 +84,7 @@ function createController(manager) {
       return manager.list().map((c) => ({
         id: c.id,
         mode: c.mapper.mode,
-        hasSpeak: typeof c.model?.speak === "function",
       }));
-    },
-    playVoice(id, voiceUrl, opts) {
-      const c = get(id);
-      if (!c?.model?.speak) {
-        console.warn("[live2d] speak not available:", id);
-        return false;
-      }
-      return c.model.speak(voiceUrl, opts);
-    },
-    playVoiceAll(voiceUrl, opts) {
-      return manager.list().map((c) => ({
-        id: c.id,
-        ok: !!c.model?.speak?.(voiceUrl, opts),
-      }));
-    },
-    stopSpeaking(id) {
-      const c = get(id);
-      if (c?.model?.stopSpeaking) c.model.stopSpeaking();
-    },
-    stopSpeakingAll() {
-      manager.list().forEach((c) => c.model?.stopSpeaking?.());
     },
     stopMotions(id) {
       const c = get(id);

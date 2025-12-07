@@ -1,34 +1,32 @@
 // action.js
+// 仅使用新版 motion API，支持动作/表情，其中动作可附带 sound 实现口型同步；不再提供独立 speak。
 import { MotionPriority } from "pixi-live2d-display-lipsyncpatch/cubism4";
 
-function tryCallMotion(model, spec) {
-  // 默认用 NORMAL，除非显式传入 priority
-  const priority = spec.priority ?? MotionPriority.NORMAL;
+function normalizeSpec(mapper, inputOrSpec) {
+  if (inputOrSpec?.kind) return inputOrSpec;
+  return mapper.resolve(inputOrSpec);
+}
 
-  // 优先 group+index
-  try {
-    if (typeof model.motion === "function") {
-      const r = model.motion(spec.group, spec.indexInGroup, priority);
-      if (r) return r;
-    }
-  } catch (_) {}
+function buildOptions(spec, model) {
+  const opt = { ...(spec.options || {}) };
+  if (spec.sound) opt.sound = spec.sound;
+  if (spec.volume !== undefined) opt.volume = spec.volume;
+  if (spec.expression !== undefined) opt.expression = spec.expression;
+  if (spec.resetExpression !== undefined) opt.resetExpression = spec.resetExpression;
+  if (spec.crossOrigin) opt.crossOrigin = spec.crossOrigin;
+  if (spec.onFinish) opt.onFinish = spec.onFinish;
+  if (spec.onError) opt.onError = spec.onError;
 
-  // 再按 name
-  try {
-    if (typeof model.motion === "function" && spec.name) {
-      return model.motion(spec.name, undefined, priority);
-    }
-  } catch (_) {}
+  // 默认播完回 Idle，除非已指定 onFinish 或本身是 Idle 组
+  if (!opt.onFinish && spec.group !== "Idle") {
+    opt.onFinish = () => {
+      try {
+        model.motion?.("Idle", undefined, MotionPriority.IDLE);
+      } catch (_) {}
+    };
+  }
 
-  // 兜底 internal
-  try {
-    const mm = model?.internalModel?.motionManager;
-    if (mm && typeof mm.startMotion === "function") {
-      return mm.startMotion(spec.group, spec.indexInGroup, priority);
-    }
-  } catch (_) {}
-
-  return false;
+  return opt;
 }
 
 function tryCallExpression(model, spec) {
@@ -49,17 +47,20 @@ function tryCallExpression(model, spec) {
 }
 
 export function createActionController(model, mapper) {
-  function act(inputOrSpec) {
-    const spec = inputOrSpec?.kind ? inputOrSpec : mapper.resolve(inputOrSpec);
-    if (!spec) {
+  function act(inputOrSpec, extra = {}) {
+    const baseSpec = normalizeSpec(mapper, inputOrSpec);
+    if (!baseSpec) {
       console.warn("[action] Unresolved input:", inputOrSpec);
       return { ok: false, spec: null };
     }
 
     if (!model?.internalModel) {
       console.warn("[action] Model not ready, skip action.");
-      return { ok: false, spec };
+      return { ok: false, spec: baseSpec };
     }
+
+    // 合并额外参数（如 sound/volume/priority 等）
+    const spec = { ...baseSpec, ...extra };
 
     if (spec.kind === "expression") {
       const ok = !!tryCallExpression(model, spec);
@@ -67,10 +68,21 @@ export function createActionController(model, mapper) {
     }
 
     if (spec.kind === "motion") {
-      const ok = !!tryCallMotion(model, spec);
-      return { ok, spec };
+      const priority = spec.priority ?? MotionPriority.NORMAL;
+      const options = buildOptions(spec, model);
+
+      try {
+        if (typeof model.motion === "function") {
+          const r = model.motion(spec.group, spec.indexInGroup, priority, options);
+          return { ok: !!r, spec };
+        }
+      } catch (e) {
+        console.warn("[action] Motion call failed:", e);
+      }
+      return { ok: false, spec };
     }
 
+    console.warn("[action] Unsupported spec kind:", spec.kind);
     return { ok: false, spec };
   }
 
