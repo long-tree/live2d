@@ -26,11 +26,12 @@
        enablePanel: true, // 调试面板
      });
 
-     // 纯动作/表情
-     ctl.act('hiyori', '挥手');
+// 纯动作/表情
+ctl.act('hiyori', '挥手');
 // 动作+音频+口型+表情（sound 通过 motion 传入；expression 支持索引或表情名）
 ctl.actWithAudio('hiyori', '挥手', '/audios/hello.mp3', {
   volume: 1,
+  crossOrigin: 'anonymous',
   expression: 0,
   resetExpression: true,
 });
@@ -68,7 +69,7 @@ ctl.actWithAudio('hiyori', '挥手', '/audios/hello.mp3', {
 - 其它用法与浏览器一致。
 
 ## 最简演示（自动触发）
-`public/test.js` 作为文档示例，加载后自动：
+`public/test.js` 作为文档示例，点击按钮或加载后自动：
 ```js
 import { initLive2d } from '/src/main.js';
 const ctl = await initLive2d();
@@ -83,3 +84,20 @@ const ctl = await initLive2d();
 );
 ```
 如浏览器阻拦自动播放，请先点击页面任意位置解锁音频。
+
+## 可爱对话框封装
+`src/dialog-api.js` 提供一键对话：文字 + 动作/表情 + 可选音频/口型 + 头顶漫画风气泡。
+```js
+import { initLive2dWithDialogue } from '/src/dialog-api.js';
+const { say } = await initLive2dWithDialogue();
+
+await say({
+  id: 'hiyori',
+  text: '你好，世界！',
+  audioUrl: '/audios/hello.mp3',   // 可选，缺省则只有文字
+  motion: '挥手',                 // 可选，缺省用 text 解析
+  expression: 0,                  // 可选，索引或表情名
+  crossOrigin: 'anonymous',
+});
+```
+气泡跟随角色头顶，按文本/音频估算时长后自动隐藏；动作/表情解析失败会回退到默认动作/表情。
