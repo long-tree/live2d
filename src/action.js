@@ -71,13 +71,10 @@ function tryCallExpression(model, spec) {
 
 export function createActionController(model, mapper) {
   function act(inputOrSpec, extra = {}) {
-    let baseSpec = normalizeSpec(mapper, inputOrSpec);
+    const baseSpec = normalizeSpec(mapper, inputOrSpec);
     if (!baseSpec) {
-      baseSpec = defaultSpec(mapper);
-      if (!baseSpec) {
-        console.warn("[action] Unresolved input and no default:", inputOrSpec);
-        return { ok: false, spec: null };
-      }
+      console.warn("[action] Unresolved input and no default allowed:", inputOrSpec);
+      return { ok: false, spec: null };
     }
 
     if (!model?.internalModel) {
@@ -99,8 +96,9 @@ export function createActionController(model, mapper) {
 
       try {
         if (typeof model.motion === "function") {
-          const r = model.motion(spec.group, spec.indexInGroup, priority, options);
-          return { ok: !!r, spec };
+          model.motion(spec.group, spec.indexInGroup, priority, options);
+          // model.motion 通常返回 void，认为调用成功即可
+          return { ok: true, spec };
         }
       } catch (e) {
         console.warn("[action] Motion call failed:", e);

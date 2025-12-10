@@ -3,6 +3,7 @@
 
 import * as PIXI from "pixi.js";
 import { initLive2d } from "./main.js";
+import { createSayEnhanced } from "./say-enhanced-helpers.mjs";
 
 // 生成柔和的渐变纹理，用作漫画气泡底色
 function createGradientTexture(colors = ["#ffeefc", "#d6f0ff"]) {
@@ -24,27 +25,21 @@ function createGradientTexture(colors = ["#ffeefc", "#d6f0ff"]) {
 
 const pastelTexture = createGradientTexture();
 
-function wrapText(text = "", maxChars = 14, maxLines = 3) {
-  const lines = [];
-  for (let i = 0; i < text.length; i += maxChars) {
-    lines.push(text.slice(i, i + maxChars));
-    if (lines.length >= maxLines) {
-      if (i + maxChars < text.length) {
-        const last = lines.pop() || "";
-        lines.push(last.replace(/.{0,2}$/, "") + "…");
-      }
-      break;
+// 按行流式排版：每行达到 maxChars 就换行，超过 maxLines 时淘汰最早的行
+function layoutStreamingText(text = "", maxChars = 14, maxLines = 3) {
+  const safeMaxChars = Math.max(1, maxChars);
+  const safeMaxLines = Math.max(1, maxLines);
+  const lines = [""];
+  for (const ch of String(text || "")) {
+    const current = lines[lines.length - 1];
+    if (current.length >= safeMaxChars) {
+      lines.push(ch);
+    } else {
+      lines[lines.length - 1] = current + ch;
     }
   }
-  return lines.join("\n");
-}
-
-// 将文本裁剪到气泡容量：超出时保留尾部，首字符替换为省略号，避免卡死在末尾
-function layoutBubbleText(text = "", maxChars = 14, maxLines = 3) {
-  const capacity = Math.max(1, maxChars * maxLines);
-  if (text.length <= capacity) return wrapText(text, maxChars, maxLines);
-  const tail = text.slice(-Math.max(1, capacity - 1));
-  return wrapText("…" + tail, maxChars, maxLines);
+  const sliced = lines.slice(-safeMaxLines);
+  return sliced.join("\n");
 }
 
 function createBubble(app, model) {
@@ -148,7 +143,7 @@ function createBubble(app, model) {
     currentMaxChars = maxChars;
     reveal.active = false;
     text.style = { ...text.style, fontSize: currentFontSize };
-    text.text = layoutBubbleText(txt, currentMaxChars, currentMaxLines);
+    text.text = layoutStreamingText(txt, currentMaxChars, currentMaxLines);
     redraw();
   }
 
@@ -161,12 +156,12 @@ function createBubble(app, model) {
       setText(txt, fontSize, maxLines, maxChars);
       return;
     }
-    reveal.active = true;
-    reveal.fullText = txt;
-    reveal.start = performance.now();
-    reveal.charsPerSec = charsPerSec;
-    reveal.lastCount = 0;
-    text.text = "";
+      reveal.active = true;
+      reveal.fullText = txt;
+      reveal.start = performance.now();
+      reveal.charsPerSec = charsPerSec;
+      reveal.lastCount = 0;
+      text.text = "";
     redraw();
   }
 
@@ -185,7 +180,7 @@ function createBubble(app, model) {
     const count = Math.min(reveal.fullText.length, Math.floor(elapsed * reveal.charsPerSec));
     if (count !== reveal.lastCount) {
       reveal.lastCount = count;
-      text.text = layoutBubbleText(reveal.fullText.slice(0, count), currentMaxChars, currentMaxLines);
+      text.text = layoutStreamingText(reveal.fullText.slice(0, count), currentMaxChars, currentMaxLines);
       redraw();
     }
     if (count >= reveal.fullText.length) {
@@ -275,16 +270,52 @@ export async function initLive2dWithDialogue(options = {}) {
       extra.resetExpression = true;
     }
 
-    let res = controller.actWithAudio
-      ? controller.actWithAudio(id, motionInput, audioUrl, extra)
-      : controller.act(id, motionInput, extra);
+    const hasMotionInput = !!(motionInput && String(motionInput).trim());
+    let res = null;
 
-    // 若未成功，尝试兜底第一个 motion，继续带音频
-    if (!res?.ok && character.model?.motion) {
+    if (!hasMotionInput && audioUrl && character.model?.speak) {
+      // 仅口型 + 可选表情，不走动作
       try {
-        character.model.motion("", 0, 2, extra.sound ? { sound: extra.sound, crossOrigin: "anonymous" } : undefined);
-        res = { ok: true, spec: { kind: "motion", group: "", indexInGroup: 0 } };
-      } catch (_) {}
+        const speakOptions = {};
+        if (extra.crossOrigin) speakOptions.crossOrigin = extra.crossOrigin;
+        if (extra.volume !== undefined) speakOptions.volume = extra.volume;
+        if (extra.expression !== undefined) {
+          speakOptions.expression = extra.expression;
+          speakOptions.resetExpression = extra.resetExpression !== undefined ? extra.resetExpression : true;
+        }
+        character.model.speak(audioUrl, speakOptions);
+        res = { ok: true, spec: { kind: "speak" } };
+      } catch (e) {
+        console.warn("[say] speak-only failed:", e);
+      }
+    }
+
+    if (!hasMotionInput) {
+      // 无动作输入时，不再调用 act，直接返回 speak 结果（或失败）
+      return res ?? { ok: false, spec: null };
+    }
+
+    if (!res && hasMotionInput) {
+      res = controller.actWithAudio
+        ? controller.actWithAudio(id, motionInput, audioUrl, extra)
+        : controller.act(id, motionInput, extra);
+
+      // 若动作解析/调用失败，且有音频，则退回 speak（口型+表情）
+      if (!res?.ok && audioUrl && character.model?.speak) {
+        try {
+          const speakOptions = {};
+          if (extra.crossOrigin) speakOptions.crossOrigin = extra.crossOrigin;
+          if (extra.volume !== undefined) speakOptions.volume = extra.volume;
+          if (extra.expression !== undefined) {
+            speakOptions.expression = extra.expression;
+            speakOptions.resetExpression = extra.resetExpression !== undefined ? extra.resetExpression : true;
+          }
+          character.model.speak(audioUrl, speakOptions);
+          res = { ok: true, spec: { kind: "speak" } };
+        } catch (e) {
+          console.warn("[say] act failed and speak fallback failed:", e);
+        }
+      }
     }
 
     const { duration, textDuration } = await estimateDuration(text, audioUrl, charsPerSec);
@@ -309,5 +340,10 @@ export async function initLive2dWithDialogue(options = {}) {
     return res;
   }
 
-  return { controller, say };
+  const sayEnhanced = createSayEnhanced({
+    say,
+    getNLMap: (charId) => controller.manager.get(charId)?.mapper?.getNLMap?.() ?? {},
+  });
+
+  return { controller, say, sayEnhanced };
 }
