@@ -1,0 +1,38 @@
+{
+  "微笑": {
+    "kind": "motion",
+    "name": "hiyori_m02"
+  },
+  "待机": {
+    "kind": "motion",
+    "name": "hiyori_m01"
+  },
+  "好奇": {
+    "kind": "motion",
+    "name": "hiyori_m03"
+  },
+  "害羞": {
+    "kind": "motion",
+    "name": "hiyori_m04"
+  },
+  "可爱": {
+    "kind": "motion",
+    "name": "hiyori_m06"
+  },
+  "惊讶": {
+    "kind": "motion",
+    "name": "hiyori_m07"
+  },
+  "哇塞": {
+    "kind": "motion",
+    "name": "hiyori_m08"
+  },
+  "无奈": {
+    "kind": "motion",
+    "name": "hiyori_m09"
+  },
+  "难过": {
+    "kind": "motion",
+    "name": "hiyori_m10"
+  }
+}

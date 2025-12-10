@@ -7,11 +7,41 @@
     body { margin: 0; overflow: hidden; background: #0f0f12; }
     canvas { display: block; width: 100vw; height: 100vh; }
   </style>
+  <!-- Tailwind for the Tetris background (used by its layout classes) -->
+  <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body>
+<!-- 直播间背景容器，置于最底层 -->
+<div id="live-bg" style="width: 100vw; height: 100vh; position: fixed; top: 0; left: 0; z-index: -1; pointer-events: none;"></div>
 <canvas id="canvas"></canvas>
 <script src="/Core/live2dcubismcore.js"></script>
 <script type="module" src="/src/main.js"></script>
 <script type="module" src="/test2.js"></script>
+<script type="module" src="/src/panel-music.js"></script>
+<!-- 引入打包后的 Tetris 3D SDK -->
+<!-- <script type="module" src="./tetris_3d/dist/assets/index-SXP-Vc3F.js"></script> -->
+<!-- <script>
+  window.addEventListener('load', () => {
+    if (!window.TetrisSDK) {
+      console.error('Tetris SDK 未加载');
+      return;
+    }
+    // 初始化 SDK，指定挂载的 DOM ID
+    window.TetrisSDK.init('live-bg'
+      // visualStyle: 'matrix',
+      // bpm: 500,
+      // enableLineClear: false // 开启无限堆叠模式
+    );
+
+    // 后续可在任何地方通过全局 API 控制
+    // setTimeout(() => {
+    //   console.log('Activating Heart Mode for stream event...');
+    //   window.TetrisFlow?.set('visualStyle', 'heart');
+    // }, 5000);
+
+    // 如需销毁背景
+    // window.TetrisSDK.destroy();
+  });
+</script> -->
 </body>
 </html>

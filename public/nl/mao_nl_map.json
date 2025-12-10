@@ -1,18 +1,58 @@
 {
-  "打气": {
-    "kind": "motion",
-    "name": "mtn_02"
-  },
-  "摇动": {
-    "kind": "motion",
-    "name": "mtn_03"
-  },
-  "扶帽子": {
+  "嫌弃": {
     "kind": "motion",
     "name": "mtn_04"
   },
   "比心": {
     "kind": "motion",
     "name": "special_01"
+  },
+  "待机": {
+    "kind": "motion",
+    "name": "mtn_01"
+  },
+  "高兴": {
+    "kind": "motion",
+    "name": "mtn_02"
+  },
+  "沉醉": {
+    "kind": "motion",
+    "name": "mtn_03"
+  },
+  "吃惊": {
+    "kind": "expression",
+    "name": "exp_07"
+  },
+  "比心失败": {
+    "kind": "motion",
+    "name": "special_02"
+  },
+  "召唤小兔": {
+    "kind": "motion",
+    "name": "special_03"
+  },
+  "笑": {
+    "kind": "expression",
+    "name": "exp_02"
+  },
+  "闭眼": {
+    "kind": "expression",
+    "name": "exp_03"
+  },
+  "眼睛发光": {
+    "kind": "expression",
+    "name": "exp_04"
+  },
+  "担忧": {
+    "kind": "expression",
+    "name": "exp_05"
+  },
+  "脸红": {
+    "kind": "expression",
+    "name": "exp_06"
+  },
+  "生气": {
+    "kind": "expression",
+    "name": "exp_08"
   }
 }

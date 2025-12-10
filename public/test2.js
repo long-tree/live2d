@@ -2,7 +2,7 @@
 import { initLive2dWithDialogue } from "/src/dialog-api.js";
 
 const VOICE_URL =
-  "https://lf3-appstore-sign.oceancloudapi.com/ocean-cloud-tos/VolcanoUserVoice/speech_7426720361753903141_6a1edae9-eb07-4f11-a5f3-ff4a48b991af.mp3?lk3s=da27ec82&x-expires=1765191487&x-signature=hBF1xPUHwVbqO3VO4I0dwhCXrN4%3D";
+  "https://lf26-appstore-sign.oceancloudapi.com/ocean-cloud-tos/VolcanoUserVoice/speech_7426720361753903141_a8dc8637-1bd7-4c94-baf9-5914cd8ee2f4.mp3?lk3s=da27ec82&x-expires=1765273907&x-signature=f6bkb1%2Fmng8fj3nru3%2B5RZZNOiI%3D";
 
 let apiReady = null;
 function ensureAPI() {
@@ -16,7 +16,7 @@ async function runDemo() {
 
   await say({
     id: "mao",
-    text: "分析关于CORS的问题用户提到之前的自制lipsync基于频谱分析，可能曾通过AudioCont域配置，问题可能会解决于频谱分析，可能曾之前的自制lipsync基于频谱分析，可能",
+    text: "亲爱的听众朋友们，欢迎来到我们的音乐时光。在这个宁静的时刻，让我们一同沉浸在具有中国民间音乐独特魅力的旋律之中。 今天要为大家带来的这首歌曲《小白马》，它仿佛是从古老的民间故事里缓缓走来。想象一下，那匹灵动的小白马，在广袤的原野上悠然驰骋，带着一种难以言说的温柔与诗意。 我们以每分钟 90 拍的舒缓节奏，为大家营造出一种舒缓而惬意的氛围。就像轻柔的微风，轻轻拂过脸颊，让人的心也随之沉静下来。 它有着琵琶般悠扬的旋律，那一声声拨弦，好似在诉说着一段段古老的故事，充满了怀旧的味道。旋律中带着一丝忧郁，却又不失温婉，就像月光洒在古老的庭院里，静谧而美好。 接下来，就让我们一同聆听这首《小白马》，感受中国民间音乐那独特的韵味和无穷的魅力",
     audioUrl: VOICE_URL,
     motion: "打气",
     expression: 2,
