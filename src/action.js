@@ -40,12 +40,30 @@ function buildOptions(spec, model) {
     opt.resetExpression = true;
   }
 
-  // 默认播完回 Idle，除非已指定 onFinish 或本身是 Idle 组
-  if (!opt.onFinish && spec.group !== "Idle") {
+  // 默认播完回 Idle（不管是否 Idle 组），除非已指定 onFinish
+  if (!opt.onFinish) {
     opt.onFinish = () => {
       try {
-        model.motion?.("Idle", undefined, MotionPriority.IDLE);
+        setTimeout(() => {
+          try {
+            const r = model.motion?.("Idle", 0, MotionPriority.FORCE);
+            console.debug?.("[action] onFinish -> Idle (force)", { result: r });
+          } catch (e) {
+            console.warn?.("[action] onFinish Idle failed", e);
+          }
+        }, 3000); // 音频结束后延迟回归 Idle，避免立即打断残余口型
       } catch (_) {}
+    };
+  }
+  // 播放出错也尝试回到 Idle，除非已指定 onError
+  if (!opt.onError) {
+    opt.onError = () => {
+      try {
+        const r = model.motion?.("Idle", 0, MotionPriority.FORCE);
+        console.debug?.("[action] onError -> Idle (force)", { result: r });
+      } catch (e) {
+        console.warn?.("[action] onError Idle failed", e);
+      }
     };
   }
 
