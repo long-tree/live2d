@@ -1,4 +1,9 @@
 {
+  "scripts": {
+    "dev": "vite --host --port 5173",
+    "build": "vite build",
+    "preview": "vite preview --host --port 5173"
+  },
   "dependencies": {
     "@pixi/events": "^7.4.0",
     "pixi-live2d-display-lipsyncpatch": "^0.5.0-ls-8",
