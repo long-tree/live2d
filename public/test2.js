@@ -1,15 +1,42 @@
-// 测试面板：输入带括号的文本和音频 URL，调用 sayEnhanced（映射 NL + 透传音频）
+// 测试/桥接：调用 sayEnhanced（映射 NL + 透传音频），同时作为 iframe 的 postMessage 桥接入口。
 import { initLive2dWithDialogue } from "/src/dialog-api.js";
 
 const DEFAULT_AUDIO_URL =
   "https://lf26-appstore-sign.oceancloudapi.com/ocean-cloud-tos/VolcanoUserVoice/speech_7426720361753903141_a8dc8637-1bd7-4c94-baf9-5914cd8ee2f4.mp3?lk3s=da27ec82&x-expires=1765273907&x-signature=f6bkb1%2Fmng8fj3nru3%2B5RZZNOiI%3D";
 
 let apiReady = null;
-function ensureAPI() {
-  if (apiReady) return apiReady;
-  apiReady = initLive2dWithDialogue({ enablePanel: false });
+async function ensureAPI() {
+  if (!apiReady) {
+    apiReady = initLive2dWithDialogue({ enablePanel: false });
+    apiReady.then(({ sayEnhanced }) => {
+      window.sayEnhanced = sayEnhanced;
+      // 通知父窗口 Live2D 已就绪
+      window.parent?.postMessage({ type: "live2d-ready" }, "*");
+    });
+  }
   return apiReady;
 }
+
+// 监听来自宿主的消息：ping / say_enhanced
+window.addEventListener("message", async (event) => {
+  const { type, data } = event.data || {};
+  if (type === "live2d-ping") {
+    window.parent?.postMessage({ type: "live2d-ready" }, "*");
+    return;
+  }
+  if (type === "live2d-say-enhanced") {
+    try {
+      const { sayEnhanced } = await ensureAPI();
+      const result = await sayEnhanced({ ...(data || {}), debug: true });
+      event.source?.postMessage({ type: "live2d-say-result", success: true, result }, "*");
+    } catch (err) {
+      event.source?.postMessage(
+        { type: "live2d-say-result", success: false, error: err?.message || String(err) },
+        "*"
+      );
+    }
+  }
+});
 
 function createPanel() {
   const wrap = document.createElement("div");
@@ -17,7 +44,7 @@ function createPanel() {
     position: fixed;
     left: 12px;
     bottom: 12px;
-    z-index: 99999;
+    z-index: 2147483647;
     background: rgba(255,255,255,0.9);
     border: 1px solid #e4d8ff;
     border-radius: 10px;
@@ -25,7 +52,11 @@ function createPanel() {
     padding: 12px;
     width: 320px;
     font-family: Arial, sans-serif;
+    pointer-events: auto;
+    user-select: auto;
   `;
+  wrap.addEventListener("pointerdown", (e) => e.stopPropagation());
+  wrap.addEventListener("mousedown", (e) => e.stopPropagation());
 
   const title = document.createElement("div");
   title.textContent = "sayEnhanced 测试";
@@ -131,7 +162,11 @@ function createPanel() {
   document.body.appendChild(wrap);
 }
 
-// 用户手势触发，避免自动播放限制
+// 仅在顶层窗口展示测试面板；iframe 嵌入模式只做桥接
 document.addEventListener("DOMContentLoaded", () => {
-  createPanel();
+  if (window.self === window.top) {
+    createPanel();
+  } else {
+    ensureAPI();
+  }
 });

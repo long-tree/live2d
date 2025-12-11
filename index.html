@@ -14,6 +14,10 @@
 <!-- 直播间背景容器，置于最底层 -->
 <div id="live-bg" style="width: 100vw; height: 100vh; position: fixed; top: 0; left: 0; z-index: -1; pointer-events: none;"></div>
 <canvas id="canvas"></canvas>
+<script>
+  // 禁用 main.js 的自动初始化，改由 test2.js 手动调用（带 enablePanel: false）
+  window.LIVE2D_AUTO_INIT = false;
+</script>
 <script src="/Core/live2dcubismcore.js"></script>
 <script type="module" src="/src/main.js"></script>
 <script type="module" src="/test2.js"></script>
